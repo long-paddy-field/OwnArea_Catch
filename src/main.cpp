@@ -5,12 +5,14 @@ asm(".global _printf_float");
 #include <mbed.h>
 #include "KRA_PID.h"
 
+//各種コンストラクタの宣言
 DigitalOut dir(PA_7);
 DigitalOut dir1(PA_3);
 PwmOut pwm1(PA_1);
 PwmOut pwm0(PA_6);
 // DigitalOut dir(PA_6);
 
+//
 DigitalOut led(LED1);
 
 DigitalIn sw(PA_10);
@@ -23,6 +25,8 @@ Thread thread(osPriorityNormal, 1024);
 KRA_PID mypid(0.1,0,39200,0,0.9);
 
 
+
+//エンコーダの値を表示する関数
 void encoder() {
   encoder1.start();
   //encoder3.start();
@@ -40,6 +44,7 @@ void encoder() {
   }
 }
 
+//PID制御の試験用関数
 void TunePID()
 {
   encoder1.start();
@@ -67,9 +72,23 @@ void TunePID()
   led = 0;
 }
 
+
 int main() {
   printf("program started\n");
   sw.mode(PullUp);
+
+//task 0:スタートボタンが押されるまで待機
+  printf("now waitinig...\n");
+//task 1:初期位置の計測
+  printf("task 1 started\n");
+
+  printf("task 1 ended.\n max angle = %lld,\n");
+//task 2:ビスコの位置まで移動
+
+//task 3:観覧車で回収
+
+//task 4:滑り台まで移動
+
 
   while (sw) {
   }
