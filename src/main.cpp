@@ -10,9 +10,7 @@ DigitalOut dir(PA_7);
 DigitalOut dir1(PA_3);
 PwmOut pwm1(PA_1);
 PwmOut pwm0(PA_6);
-// DigitalOut dir(PA_6);
 
-//
 DigitalOut led(LED1);
 
 DigitalIn sw(PA_10);
@@ -23,7 +21,6 @@ Encoder1 encoder1(360);
 Thread thread(osPriorityNormal, 1024);
 
 KRA_PID mypid(0.1,0,39200,0,0.9);
-
 
 
 //エンコーダの値を表示する関数
@@ -47,10 +44,10 @@ void encoder() {
 //PID制御の試験用関数
 void TunePID()
 {
-  encoder1.start();
-//  encoder3.start();
   pwm0.period_ms(10);
   mypid.setgain(10,0.2,0);
+  encoder1.start();
+//  encoder3.start();
   mypid.setgoal(10000);
   led = 1;
   float output=0;
@@ -79,16 +76,20 @@ int main() {
 
 //task 0:スタートボタンが押されるまで待機
   printf("now waitinig...\n");
+
 //task 1:初期位置の計測
   printf("task 1 started\n");
 
-  printf("task 1 ended.\n max angle = %lld,\n");
+  printf("task 1 ended.\n");
 //task 2:ビスコの位置まで移動
-
+  printf("task 2 started\n");
+  printf("task 2 ended\n");
 //task 3:観覧車で回収
-
+  printf("task 3 started\n"); 
+  printf("task 3 ended");
 //task 4:滑り台まで移動
-
+  printf("task 4 started\n");
+  printf("task 4 ended\n");
 
   while (sw) {
   }
