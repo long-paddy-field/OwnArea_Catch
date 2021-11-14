@@ -1,9 +1,16 @@
 asm(".global _printf_float");
 
-#include <encoder1.h>
-#include <encoder3.h>
 #include <mbed.h>
 #include "KRA_PID.h"
+
+
+#define LIMIT1_1 PA_0
+#define LIMIT1_2 PA_4
+#define LIMIT2_1 PF_1
+#define LIMIT2_2 PF_0
+
+#define ENC_1
+#define ENC_3
 
 //各種コンストラクタの宣言
 DigitalOut dir(PA_7);
@@ -12,88 +19,89 @@ PwmOut pwm1(PA_1);
 PwmOut pwm0(PA_6);
 
 DigitalOut led(LED1);
-
 DigitalIn sw(PA_10);
 
-Encoder1 encoder1(360);
-//Encoder3 encoder3(360);
+InterruptIn LS1_1(LIMIT1_1);
+InterruptIn LS1_2(LIMIT1_2);
+InterruptIn LS2_1(LIMIT2_1);
+InterruptIn LS2_2(LIMIT2_2);
 
 Thread thread(osPriorityNormal, 1024);
 
-KRA_PID mypid(0.1,0,39200,0,0.9);
+KRA_PID mypid_1(0.1,0,39200,0,0.9);
+KRA_PID mypid_2(0.1,0,39200,0,0.9);
 
+CAN can(PA_11,PA_12,500000);
 
-//エンコーダの値を表示する関数
-void encoder() {
-  encoder1.start();
-  //encoder3.start();
-  pwm0.period_ms(10);
-
-  while (true) {
-    encoder1.update();
-//    encoder3.update();
-
-/*    printf("angle1: %lld, %lld\n", encoder1.getRawSumPulse(),
-           encoder3.getRawSumPulse());
-           */
-    // printf("%d\n", TIM1->CNT);
-    ThisThread::sleep_for(10ms);
-  }
-}
-
-//PID制御の試験用関数
-void TunePID()
-{
-  pwm0.period_ms(10);
-  mypid.setgain(10,0.2,0);
-  encoder1.start();
-//  encoder3.start();
-  mypid.setgoal(10000);
-  led = 1;
-  float output=0;
-  do
-  {
-    encoder1.update();
-//    encoder3.update();
-    
-    output = mypid.calPID(encoder1.getRawSumPulse());
-    pwm0 = abs(output);
-    dir = mypid.Out_sign;
-    printf("goal = 10000,now=%lld,error=%f",encoder1.getRawSumPulse(),mypid.error);
-    printf("pwmoutput:%f ,dir:%d\n",output,mypid.Out_sign);
-    wait_us(100000);
-
-  } while (!mypid.judgePID());
-  pwm0 = 0;
-  printf("task ended\n");
-  led = 0;
-}
+void TestEncoder();//QEIのテスト
+void TestPID();//PIDのテスト
+void waitstart();//startボタンが押されるまで待機
+void setorigin();//リミットスイッチが押されるまで負方向に＋押されたらそこをゼロに
+void setterminal();//リミットスイッチが押されるまで制方向に＋押されたらそこを読み取る
+void movepid(float goal);//goalまでPID制御で進む
+void valve_request();//電磁弁に動けと送信
+void encoder();//エンコーダ―読み取り
+void tunepid();//pidテスト用
 
 
 int main() {
   printf("program started\n");
   sw.mode(PullUp);
 
+  while (sw) {
+  }
+
 //task 0:スタートボタンが押されるまで待機
   printf("now waitinig...\n");
+  waitstart();
 
 //task 1:初期位置の計測
   printf("task 1 started\n");
-
+  
   printf("task 1 ended.\n");
+
 //task 2:ビスコの位置まで移動
   printf("task 2 started\n");
+  
   printf("task 2 ended\n");
+
 //task 3:観覧車で回収
   printf("task 3 started\n"); 
   printf("task 3 ended");
+
 //task 4:滑り台まで移動
   printf("task 4 started\n");
   printf("task 4 ended\n");
 
-  while (sw) {
-  }
-  TunePID();
   while (true) {
   }
+}
+
+void waitstart()
+{
+  CANMessage msg(0x0,CANStandard);
+  while(!can.read(msg))
+  {
+    wait_us(100000);
+  }
+}
+
+void setorigin()
+{
+
+}
+
+void setterminal()
+{
+
+}
+
+void movepid()
+{
+
+}
+
+void valve_request()
+{
+
 }
