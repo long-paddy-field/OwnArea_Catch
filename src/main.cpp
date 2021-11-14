@@ -75,7 +75,7 @@ int main() {
   //task 2:ビスコの位置まで移動
     printf("task 2 started\n");
     movepid1(bisco_location[loop-1]);
-   printf("task 2 ended\n");
+    printf("task 2 ended\n");
 
   //task 3:観覧車で回収
     printf("task 3 started\n"); 
@@ -147,7 +147,8 @@ void movepid1(float goal)
     pwm1 = abs(pid_output);
     dir1 = pid_output > 0 ? 1 : 0;
     wait_us(100000);
-  } while (mypid_1.judgePID());
+  } while (!mypid_1.judgePID());
+  pwm1=0;
 }
 
 void movepid2(float goal)
@@ -159,7 +160,8 @@ void movepid2(float goal)
     pwm2 = abs(pid_output);
     dir2 = pid_output > 0 ? 1 : 0;
     wait_us(100000);
-  } while (mypid_2.judgePID());
+  } while (!mypid_2.judgePID());
+  pwm2=0;
 }
 
 void valve_request()
