@@ -13,8 +13,8 @@ asm(".global _printf_float");
 //各種コンストラクタの宣言
 DigitalOut dir1(PA_7);
 DigitalOut dir2(PA_3);
-PwmOut pwm1(PA_1);
-PwmOut pwm2(PA_6);
+PwmOut pwm1(PA_6);
+PwmOut pwm2(PA_1);
 
 DigitalOut led(LED1);
 DigitalIn sw(PA_10);
@@ -25,26 +25,37 @@ DigitalIn LS2_1(LIMIT2_1);
 DigitalIn LS2_2(LIMIT2_2);
 Thread thread(osPriorityNormal, 1024);
 KRA_PID mypid_1(0.1,0,39200,0,0.9);
-KRA_PID mypid_2(0.1,0,360,0,0.9);
+KRA_PID mypid_2(0.1,0,300,0,0.7);
 Timer time1;
 Timer time2;
- 
-QEI encoder1(PA_8,PA_9,NC,360,&time1);
-QEI encoder2(PB_4,PB_5,NC,360,&time2);
+
+QEI encoder1(PA_8,PA_9,NC,360,&time1,QEI::X4_ENCODING);
+QEI encoder2(PB_4,PB_5,NC,500,&time2,QEI::X4_ENCODING);
 CAN can(PA_11,PA_12,500000);
+unsigned char data2 = 0;
+unsigned char data6 = 0;
+CANMessage msg1(0x1,CANStandard);
+CANMessage msg2(0x2,&data2);
+CANMessage msg4(0x4,CANStandard);
+CANMessage msg5(0x5,CANStandard);
+CANMessage msg6(0x6,&data6);
+CANMessage msg8(0x8,CANStandard);
+
 
 void TestEncoder();//QEIのテスト
 void TestPID();//PIDのテスト
-void waitstart();//startボタンが押されるまで待機
 void setorigin();//リミットスイッチが押されるまで負方向に＋押されたらそこをゼロに
 void setterminal();//リミットスイッチが押されるまで制方向に＋押されたらそこを読み取る
 void movepid1(float goal);//goalまでPID制御で進む
 void movepid2(float goal);
-void valve_request();//電磁弁に動けと送信
+void valve_request(bool status);//電磁弁に動けと送信
 void encoder();//エンコーダ―読み取り
 void tunepid();//pidテスト用
+void endprotocol();//終わり処理
 
+Ticker checkend;
 float bisco_location[7]={0,0,0,0,0,0,0};
+int location_pointer = 1;
 float FW_angle[3]={0,0,0};
 unsigned char data_msg2 = 0;
 
@@ -54,62 +65,61 @@ int main() {
   pwm1.period_ms(1);
   pwm2.period_ms(1);
   mypid_1.setgain(20,0.1,0);
-  mypid_2.setgain(20,0.1,0);
+  mypid_2.setgain(2.5,0.1,0);
   while (sw) {
   }
-
-//task 0:スタートボタンが押されるまで待機
-  printf("now waitinig...\n");
-  waitstart();
-
+  movepid2(100);
   while(1)
   {
-//task 1:初期位置の計測
-  printf("task 1 started\n");
-  setorigin();
-  setterminal();
-  printf("task 1 ended.\n");
-
-  for(int loop = 1;loop <= 6;loop++)
-  {
-  //task 2:ビスコの位置まで移動
-    printf("task 2 started\n");
-    movepid1(bisco_location[loop-1]);
-    printf("task 2 ended\n");
-
-  //task 3:観覧車で回収
-    printf("task 3 started\n"); 
-    movepid2(FW_angle[0]);
-    valve_request();
-    wait_us(500000);
-    movepid2(FW_angle[1]);
-    printf("task 3 ended");
-
-  //task 4:滑り台まで移動
-    printf("task 4 started\n");
-    movepid1(bisco_location[6]);
-    printf("task 4 ended\n");
-
-  //task 5:おろす
-    printf("task 5 started\n");
-    movepid2(FW_angle[2]);
-    valve_request();
-    wait_us(500000);
-    movepid2(FW_angle[1]);
-    printf("task 5 ended\n");
+    
   }
-
-  }
-
-}
-
-void waitstart()
-{
-  CANMessage msg1(0x0,CANStandard);
-  while(!can.read(msg1))
+//phaze 0:スタートボタンが押されるまで待機
+  printf("now waitinig...\n");
+  while(can.read(msg1))
   {
     wait_us(100000);
   }
+
+//phaze 1:PI制御のパラメータを設定
+  setorigin();
+  setterminal();
+  can.write(msg2);
+
+//phaze 2:シフトに反応してスタート位置を決定
+  while(1)
+  {
+    while(can.read(msg5))
+    {
+      wait_us(100000);
+    }
+   
+  }
+//phaze 3:稼働開始
+  checkend.attach(callback(&endprotocol),0.1);
+  while(1)
+  {
+    //指定位置まで移動
+    movepid1(bisco_location[location_pointer-1]);
+    //観覧車動かす
+    movepid2(FW_angle[0]);
+    valve_request(0);
+    wait_us(500000);
+    movepid2(FW_angle[1]);
+    //滑り台まで移動
+    movepid1(bisco_location[6]);
+    //観覧車動かす
+    movepid2(FW_angle[2]);
+    valve_request(1);
+    wait_us(500000);
+    movepid2(FW_angle[1]);
+
+    location_pointer++;
+    if(location_pointer > 7)
+    {
+      location_pointer -= 6;
+    }
+  }
+
 }
 
 void setorigin()
@@ -158,14 +168,30 @@ void movepid2(float goal)
   {
     float pid_output = mypid_2.calPID(encoder2.getSumangle());
     pwm2 = abs(pid_output);
-    dir2 = pid_output > 0 ? 1 : 0;
+    dir2 = pid_output > 0 ? 0 : 1;
+    printf("goal:100 now:%f output:%f\n",encoder2.getSumangle(),pid_output);
     wait_us(100000);
   } while (!mypid_2.judgePID());
   pwm2=0;
 }
 
-void valve_request()
+void valve_request(bool status)
 {
-  CANMessage msg2(0x1,&data_msg2,1,CANData,CANStandard);
-  can.write(msg2);
+  msg6.data[0] = (status == true) ? 0 : 1;
+  can.write(msg6);
+}
+
+void endprotocol()
+{
+  if(can.read(msg8))
+  {
+    checkend.detach();
+    movepid2(FW_angle[1]);
+    pwm1 = 0;
+    pwm2 = 0;
+    while(1)
+    {
+
+    }
+  }
 }
