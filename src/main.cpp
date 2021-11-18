@@ -9,7 +9,6 @@ asm(".global _printf_float");
 #define LIMIT2_1 PF_1
 #define LIMIT2_2 PF_0
 
-
 //各種コンストラクタの宣言
 DigitalOut dir1(PA_7);
 DigitalOut dir2(PA_3);
@@ -18,6 +17,7 @@ PwmOut pwm2(PA_1);
 
 DigitalOut led(LED1);
 DigitalIn sw(PA_10);
+DigitalIn mode_sw(PB_0);
 
 DigitalIn LS1_1(LIMIT1_1);
 DigitalIn LS1_2(LIMIT1_2);
@@ -33,14 +33,13 @@ QEI encoder1(PA_8,PA_9,NC,360,&time1,QEI::X4_ENCODING);
 QEI encoder2(PB_4,PB_5,NC,500,&time2,QEI::X4_ENCODING);
 CAN can(PA_11,PA_12,500000);
 unsigned char data2 = 0;
-unsigned char data6 = 0;
+unsigned char data6 = 0;//0は閉じる　1は開ける
 CANMessage msg1(0x1,CANStandard);
 CANMessage msg2(0x2,&data2);
 CANMessage msg4(0x4,CANStandard);
 CANMessage msg5(0x5,CANStandard);
 CANMessage msg6(0x6,&data6);
 CANMessage msg8(0x8,CANStandard);
-
 
 void TestEncoder();//QEIのテスト
 void TestPID();//PIDのテスト
@@ -56,9 +55,173 @@ void endprotocol();//終わり処理
 Ticker checkend;
 float bisco_location[7]={0,0,0,0,0,0,0};
 int location_pointer = 1;
-float FW_angle[3]={0,0,0};
-unsigned char data_msg2 = 0;
+float FW_angle[3]={0,0,0};//[0]:ビスコ [1]:真ん中 [2]:滑り台
+int now_goal1 = 1;//1~6:ビスコ　7:滑り台
+int now_goal2 = 1;//0:ビスコ 1:正午 2:滑り台
+float pid_output1 = 0;
+float pid_output2 = 0;
 
+int main()
+{
+  printf("program started\n");
+  sw.mode(PullUp);
+  pwm1.period_ms(1);
+  pwm2.period_ms(1);
+  mypid_1.setgain(20,0.1,0);
+  mypid_2.setgain(2.5,0.1,0);
+
+  if(mode_sw)
+  {
+    //青の時
+    bisco_location[0] = 0;
+    bisco_location[1] = 4000;
+    bisco_location[2] = 8000;
+    bisco_location[3] = 12000;
+    bisco_location[4] = 16000;
+    bisco_location[5] = 20000;
+    bisco_location[6] = 24000;
+    FW_angle[0] = -100;
+    FW_angle[1] = 0;
+    FW_angle[2] = 100;
+  }else{
+    //赤の時
+    bisco_location[0] = 0;
+    bisco_location[1] = 4000;
+    bisco_location[2] = 8000;
+    bisco_location[3] = 12000;
+    bisco_location[4] = 16000;
+    bisco_location[5] = 20000;
+    bisco_location[6] = 24000;
+    FW_angle[0] = -100;
+    FW_angle[1] = 0;
+    FW_angle[2] = 100;
+  }
+//phaze 0:スタートボタンが押されるまで待機
+  printf("now waiting msg1...\n");
+  while(!can.read(msg1))
+  {
+    wait_us(100000);
+  }
+//phaze 1:PI制御のセッティング
+  printf("Let's begin setting!\n");
+  setorigin();
+  setterminal();
+  can.write(msg2);
+  printf("End setting PID!\n");
+//phaze 2:シフトボタンで
+  printf("start setting location\n");
+  while(1)
+  {
+    if(can.read(msg4))
+    {
+      movepid1(bisco_location[msg4.data[0]-1]);
+      now_goal1 = msg4.data[0];
+      printf("now location_num %d",msg4.data[0]-1);
+    }else if(can.read(msg5))
+    {
+      printf("End setting Location\n");
+      break;
+    }
+    wait_us(100000);
+  }
+//phaze 3:本格稼働
+  bool pause = false;
+  int task_num = 0;
+  checkend.attach(callback(&endprotocol),0.1);
+  while(!can.read(msg8))
+  {
+    if(can.read(msg4))
+    {
+      pause = !pause;
+    }
+    mypid_2.setgoal(FW_angle[now_goal2]);
+    if(!pause)
+    {
+      switch (task_num)
+      {
+        case 0:
+        now_goal2 = 1;
+        if(mypid_2.judgePID())
+        {
+          task_num++;
+        }
+        break;
+        
+        case 1:
+        now_goal2 = 1;
+        mypid_1.setgoal(bisco_location[now_goal1-1]);
+        pid_output1 = mypid_1.calPID(encoder1.getSumangle());
+        pwm1 = abs(pid_output1);
+        dir1 = pid_output1 > 0 ? 1 : 0;
+        if(mypid_1.judgePID())
+        {
+          task_num++;
+          pwm1 = 0;
+        }
+        break;
+        
+        case 2:
+        now_goal2 = 0;
+        if(mypid_2.judgePID())
+        {
+          task_num++;
+          msg6.data[0] = 0;
+          can.write(msg6);
+          wait_us(500000);
+        }
+        break;
+        
+        case 3:
+        now_goal2 = 1;
+        if(mypid_2.judgePID())
+        {
+          task_num++;
+        }
+        break;
+        
+        case 4:
+        now_goal2 = 1;
+        mypid_1.setgoal(bisco_location[6]);
+        pid_output1 = mypid_1.calPID(encoder1.getSumangle());
+        pwm1 = abs(pid_output1);
+        dir1 = pid_output1 > 0 ? 1 : 0;
+        if(mypid_1.judgePID())
+        {
+          task_num++;
+          pwm1 = 0;
+        }
+        break;
+        
+        case 5:
+        now_goal2 = 2;
+        if(mypid_2.judgePID())
+        {
+          task_num = 0;
+          msg6.data[0] = 1;
+          can.write(msg6);
+          now_goal1++;
+          if(now_goal1 > 5)
+          {
+            now_goal1 = now_goal1 - 5;
+          }
+        }
+        break;
+      }
+    }
+    pid_output2 = mypid_2.calPID(encoder2.getSumangle());
+    pwm2 = abs(pid_output2);
+    dir2 = pid_output2 > 0 ? 0 : 1;
+    wait_us(100000);
+  }
+//phaze 4:終了処理
+  printf("end protocol activated\n");
+  movepid2(FW_angle[2]);
+  pwm1 = 0;
+  pwm2 = 0;
+  printf("all program completed\n");
+  return 0;
+}
+/*
 int main() {
   printf("program started\n");
   sw.mode(PullUp);
@@ -121,7 +284,7 @@ int main() {
   }
 
 }
-
+*/
 void setorigin()
 {
   while(LS1_1)
