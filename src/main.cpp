@@ -70,6 +70,21 @@ int main()
   mypid_1.setgain(20,0.1,0);
   mypid_2.setgain(2.5,0.1,0);
 
+
+  while(1)
+  {
+    if(sw)
+    {
+      mypid_2.setgoal(500);
+    }else{
+      mypid_2.setgoal(0);
+    }
+    pid_output2 = mypid_2.calPID(encoder2.getSumangle());
+    pwm2 = abs(pid_output2);
+    dir2 = pid_output2 > 0 ? 0 : 1;
+    printf("now angle:%f ,output:%f\n",encoder2.getSumangle(),pid_output2);
+    wait_us(100000);
+  }
   if(mode_sw)
   {
     //青の時
