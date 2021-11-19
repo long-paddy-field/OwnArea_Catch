@@ -40,6 +40,7 @@ CANMessage msg4(0x4,CANStandard);
 CANMessage msg5(0x5,CANStandard);
 CANMessage msg6(0x6,&data6);
 CANMessage msg8(0x8,CANStandard);
+CANMessage msg9(0x9,CANStandard);
 
 void TestEncoder();//QEIのテスト
 void TestPID();//PIDのテスト
@@ -129,9 +130,9 @@ int main()
   {
     if(can.read(msg4))
     {
-      movepid1(bisco_location[msg4.data[0]-1]);
+      movepid1(bisco_location[msg4.data[0]]);
       now_goal1 = msg4.data[0];
-      printf("now location_num %d",msg4.data[0]-1);
+      printf("now location_num %d",msg4.data[0]);
     }else if(can.read(msg5))
     {
       printf("End setting Location\n");
@@ -145,7 +146,7 @@ int main()
   checkend.attach(callback(&endprotocol),0.1);
   while(!can.read(msg8))
   {
-    if(can.read(msg4))
+    if(can.read(msg9))
     {
       pause = !pause;
     }
@@ -223,6 +224,7 @@ int main()
         break;
       }
     }
+    
     pid_output2 = mypid_2.calPID(encoder2.getSumangle());
     pwm2 = abs(pid_output2);
     dir2 = pid_output2 > 0 ? 0 : 1;
