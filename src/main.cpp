@@ -11,7 +11,7 @@ asm(".global _printf_float");
 
 //各種コンストラクタの宣言
 DigitalOut dir1(PA_7);
-DigitalOut dir2(PA_3);
+PwmOut dir2(PA_3);
 PwmOut pwm1(PA_6);
 PwmOut pwm2(PA_1);
 
@@ -25,7 +25,7 @@ DigitalIn LS2_1(LIMIT2_1);
 DigitalIn LS2_2(LIMIT2_2);
 Thread thread(osPriorityNormal, 1024);
 KRA_PID mypid_1(0.1,0,39200,0,0.9);
-KRA_PID mypid_2(0.1,0,300,0,0.7);
+KRA_PID mypid_2(0.1,0,160,0,0.3);
 Timer time1;
 Timer time2;
 
@@ -66,26 +66,45 @@ int main()
 {
   printf("program started\n");
   sw.mode(PullUp);
+  LS1_1.mode(PullUp);
+  LS1_2.mode(PullUp);
+  LS2_1.mode(PullUp);
+  LS2_2.mode(PullUp);
   pwm1.period_ms(1);
   pwm2.period_ms(1);
+  dir2.period_us(50);
   mypid_1.setgain(20,0.1,0);
   mypid_2.setgain(2.5,0.1,0);
-
+  
+  while(sw)
+  {
+    
+  }
 
   while(1)
   {
-    if(sw)
+    if(!LS2_1||!LS2_2)
     {
-      mypid_2.setgoal(500);
-    }else{
-      mypid_2.setgoal(0);
+      pwm2 = 0;
     }
+    mypid_2.setgoal(30);
     pid_output2 = mypid_2.calPID(encoder2.getSumangle());
-    pwm2 = abs(pid_output2);
-    dir2 = pid_output2 > 0 ? 0 : 1;
-    printf("now angle:%f ,output:%f\n",encoder2.getSumangle(),pid_output2);
+    if(abs(mypid_2.error) < 0.01)
+    {
+      //rocked_anch_phaze
+      printf("rocked_anti_phaze\n");
+      pwm2 = 1;
+      dir2 = 0.5;
+   }else{
+      printf("PID controll\n");
+      pwm2 = abs(pid_output2);
+      dir2 = pid_output2 > 0 ? 0 : 1;
+    }
+    printf("now angle:%f ,output:%f, error:%f\n",encoder2.getSumangle(),pid_output2,mypid_2.error);
+    printf("pid_input%f:,pid_goal:%f\n",mypid_2.pid_input,mypid_2.pid_goal);
     wait_us(100000);
   }
+
   if(mode_sw)
   {
     //青の時
@@ -146,6 +165,16 @@ int main()
   checkend.attach(callback(&endprotocol),0.1);
   while(!can.read(msg8))
   {
+    if(!LS1_1||!LS1_2)
+    {
+      pwm2 = 0;
+      dir2 = 0;
+      while(1)
+      {
+
+      }
+    }
+
     if(can.read(msg9))
     {
       pause = !pause;

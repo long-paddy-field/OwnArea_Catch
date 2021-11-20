@@ -70,7 +70,6 @@ float KRA_PID::calPID(float argument)
     Prev_L = pid_input;
     
     calsign(pid_output);
-
     if(pid_output>1)
     {
         return Out_max;

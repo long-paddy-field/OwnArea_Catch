@@ -24,14 +24,15 @@ class KRA_PID
     float acc;//累積和
     float dif;//差分
 
+    float pid_input;//入力値
+    float pid_goal;//目標値
+    float pid_output;//出力値
+
     private:
     float Kp;//比例ゲイン
     float Ki;//積分ゲイン
     float Kd;//微分ゲイン
 
-    float pid_input;//入力値
-    float pid_goal;//目標値
-    float pid_output;//出力値
 
     float Prev_L;//dt秒前の位置
     float Prev_E;//dt秒前の偏差
