@@ -35,10 +35,10 @@ void KRA_PID::setgain(float _p,float _i,float _d)
 void KRA_PID::setgoal(float argument)
 {
     //目標値の設定
-    pid_goal = standardize(argument);
+    pid_goal = normalize(argument);
 }
 
-float KRA_PID::standardize(float argument)
+float KRA_PID::normalize(float argument)
 {
     //最小を0,最大を1になるよう縮尺を変更
     return (argument - In_min)/(In_max - In_min);
@@ -47,7 +47,7 @@ float KRA_PID::standardize(float argument)
 float KRA_PID::calPID(float argument)
 {
     //他の値に合わせ入力も標準化
-    pid_input = standardize(argument);
+    pid_input = normalize(argument);
 
     //偏差の計算
     error = pid_goal-pid_input;
