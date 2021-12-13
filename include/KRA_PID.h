@@ -37,6 +37,6 @@ class KRA_PID
     float Prev_L;//dt秒前の位置
     float Prev_E;//dt秒前の偏差
     float Prev_O;//dt秒前の出力
-    float standardize(float);
+    float normalize(float);
 };
 #endif
